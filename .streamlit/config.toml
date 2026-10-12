@@ -11,6 +11,7 @@ headless = true
 enableCORS = false
 enableXsrfProtection = false
 maxUploadSize = 50
+fileWatcherType = "none"
 
 [browser]
 gatherUsageStats = false

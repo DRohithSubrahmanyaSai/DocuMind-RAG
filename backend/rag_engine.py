@@ -1,8 +1,15 @@
 import os
 import re
 import time
+import warnings
 import logging
 from typing import List, Dict, Any, Optional, Tuple
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+warnings.filterwarnings("ignore")
+logging.getLogger("transformers").setLevel(logging.ERROR)
+
 import pymupdf  # Modern PyMuPDF import
 from rank_bm25 import BM25Okapi
 

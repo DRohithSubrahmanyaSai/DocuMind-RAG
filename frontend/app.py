@@ -1,9 +1,18 @@
 import os
+import sys
 import uuid
 import json
 import time
+import warnings
+import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+
+# Suppress torchvision and tokenizer warnings
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+warnings.filterwarnings("ignore")
+logging.getLogger("transformers").setLevel(logging.ERROR)
 
 import streamlit as st
 import requests
@@ -48,9 +57,6 @@ if "messages" not in st.session_state:
 
 if "backend_url" not in st.session_state:
     st.session_state.backend_url = os.getenv("BACKEND_API_URL", "http://localhost:8000")
-
-if "groq_api_key" not in st.session_state:
-    st.session_state.groq_api_key = os.getenv("GROQ_API_KEY", "")
 
 if "indexed_docs" not in st.session_state:
     st.session_state.indexed_docs = []
@@ -251,27 +257,15 @@ with st.sidebar:
         st.warning("🟠 Backend: Disconnected")
 
     # API Settings Accordion
-    with st.expander("⚙️ Connection & API Settings", expanded=False):
+    with st.expander("⚙️ Backend Service URL", expanded=False):
         api_url_input = st.text_input(
-            "FastAPI Backend URL",
+            "FastAPI Backend Endpoint",
             value=st.session_state.backend_url,
-            help="URL of your running FastAPI service (Local or Render)",
+            help="URL of your running FastAPI service (Local: http://localhost:8000 or Cloud URL)",
         )
         if api_url_input != st.session_state.backend_url:
             st.session_state.backend_url = api_url_input
             st.rerun()
-
-        groq_key_input = st.text_input(
-            "Groq API Key",
-            value=st.session_state.groq_api_key,
-            type="password",
-            help="Free key from console.groq.com",
-        )
-        if groq_key_input != st.session_state.groq_api_key:
-            st.session_state.groq_api_key = groq_key_input
-            os.environ["GROQ_API_KEY"] = groq_key_input
-            if DIRECT_BACKEND_AVAILABLE:
-                settings.GROQ_API_KEY = groq_key_input
 
     st.markdown("---")
 
