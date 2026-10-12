@@ -36,16 +36,6 @@ if CSS_PATH.exists():
     with open(CSS_PATH, "r", encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Try importing backend directly for standalone mode fallback
-DIRECT_BACKEND_AVAILABLE = False
-try:
-    from backend.rag_engine import rag_engine
-    from backend.config import settings
-    DIRECT_BACKEND_AVAILABLE = True
-except Exception:
-    DIRECT_BACKEND_AVAILABLE = False
-
-
 # ==============================================================================
 # Session State Initialization
 # ==============================================================================
@@ -63,7 +53,7 @@ if "indexed_docs" not in st.session_state:
 
 
 # ==============================================================================
-# Backend Communication Layer (REST API + Standalone Fallback)
+# Backend Communication Layer (REST API)
 # ==============================================================================
 def check_api_health(url: str) -> Optional[Dict[str, Any]]:
     """Verify connectivity with FastAPI backend."""
@@ -77,8 +67,7 @@ def check_api_health(url: str) -> Optional[Dict[str, Any]]:
 
 
 def fetch_documents(url: str, session_id: str) -> List[Dict[str, Any]]:
-    """Retrieve document list from backend or direct engine."""
-    # Try REST API first
+    """Retrieve document list from backend API."""
     try:
         resp = requests.get(
             f"{url.rstrip('/')}/api/documents",
@@ -89,21 +78,13 @@ def fetch_documents(url: str, session_id: str) -> List[Dict[str, Any]]:
             return resp.json().get("documents", [])
     except Exception:
         pass
-
-    # Direct backend fallback
-    if DIRECT_BACKEND_AVAILABLE:
-        try:
-            return rag_engine.list_documents(session_id=session_id)
-        except Exception:
-            pass
     return []
 
 
 def upload_files_to_rag(
     url: str, files, session_id: str
 ) -> Tuple[bool, str, int]:
-    """Upload PDF files to FastAPI or local RAG engine."""
-    # 1. Try FastAPI endpoint
+    """Upload PDF files to FastAPI backend."""
     try:
         files_payload = [
             ("files", (f.name, f.getvalue(), "application/pdf")) for f in files
@@ -116,31 +97,11 @@ def upload_files_to_rag(
         )
         if resp.status_code == 200:
             data = resp.json()
-            return True, data.get("message", "Files uploaded."), data.get("total_chunks_added", 0)
+            return True, data.get("message", "Files uploaded successfully."), data.get("total_chunks_added", 0)
+        else:
+            return False, f"Upload error: {resp.text}", 0
     except Exception as e:
-        # If API failed, fall back to direct engine if available
-        pass
-
-    # 2. Direct fallback
-    if DIRECT_BACKEND_AVAILABLE:
-        import tempfile
-        total_chunks = 0
-        try:
-            for f in files:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(f.getvalue())
-                    tmp_path = tmp.name
-                try:
-                    res = rag_engine.ingest_pdf(tmp_path, f.name, session_id=session_id)
-                    total_chunks += res["total_chunks"]
-                finally:
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
-            return True, f"Ingested {len(files)} file(s) directly into FAISS + BM25.", total_chunks
-        except Exception as ex:
-            return False, f"Direct ingestion error: {str(ex)}", 0
-
-    return False, "Could not connect to FastAPI backend or direct engine.", 0
+        return False, f"Connection error: {str(e)}", 0
 
 
 def execute_rag_query(
@@ -152,8 +113,7 @@ def execute_rag_query(
     temperature: float,
     search_mode: str,
 ) -> Dict[str, Any]:
-    """Execute query via FastAPI or direct RAG engine."""
-    # Try FastAPI endpoint
+    """Execute query via FastAPI backend."""
     try:
         payload = {
             "question": question,
@@ -170,74 +130,46 @@ def execute_rag_query(
         )
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
-
-    # Direct fallback
-    if DIRECT_BACKEND_AVAILABLE:
-        try:
-            res = rag_engine.answer_query(
-                question=question,
-                session_id=session_id,
-                top_k=top_k,
-                model_name=model,
-                temperature=temperature,
-                search_mode=search_mode,
-            )
-            return res
-        except Exception as ex:
+        else:
             return {
                 "question": question,
-                "answer": f"Error running RAG query: {str(ex)}",
+                "answer": f"API Error ({resp.status_code}): {resp.text}",
                 "sources": [],
                 "model_used": "error",
                 "latency_ms": 0.0,
                 "chunks_retrieved": 0,
             }
-
-    return {
-        "question": question,
-        "answer": "Backend API unreachable. Please verify FastAPI backend is running or configured.",
-        "sources": [],
-        "model_used": "offline",
-        "latency_ms": 0.0,
-        "chunks_retrieved": 0,
-    }
+    except Exception as e:
+        return {
+            "question": question,
+            "answer": (
+                "⚠️ Backend API unreachable. Please ensure the FastAPI backend is running:\n\n"
+                "`python main.py server`\n\n"
+                f"Error: {str(e)}"
+            ),
+            "sources": [],
+            "model_used": "offline",
+            "latency_ms": 0.0,
+            "chunks_retrieved": 0,
+        }
 
 
 def delete_single_document(url: str, document_name: str) -> bool:
     """Delete a document from index."""
     try:
         resp = requests.delete(f"{url.rstrip('/')}/api/documents/{document_name}", timeout=5.0)
-        if resp.status_code == 200:
-            return True
+        return resp.status_code == 200
     except Exception:
-        pass
-
-    if DIRECT_BACKEND_AVAILABLE:
-        try:
-            return rag_engine.delete_document(document_name)
-        except Exception:
-            pass
-    return False
+        return False
 
 
 def clear_all_knowledge(url: str) -> bool:
     """Clear all documents and vectors."""
     try:
         resp = requests.delete(f"{url.rstrip('/')}/api/documents", timeout=5.0)
-        if resp.status_code == 200:
-            return True
+        return resp.status_code == 200
     except Exception:
-        pass
-
-    if DIRECT_BACKEND_AVAILABLE:
-        try:
-            rag_engine.clear_all()
-            return True
-        except Exception:
-            pass
-    return False
+        return False
 
 
 # ==============================================================================
@@ -251,10 +183,8 @@ with st.sidebar:
     health_data = check_api_health(st.session_state.backend_url)
     if health_data:
         st.success("🟢 FastAPI Backend: Connected")
-    elif DIRECT_BACKEND_AVAILABLE:
-        st.info("🔵 Engine: Standalone FAISS+BM25")
     else:
-        st.warning("🟠 Backend: Disconnected")
+        st.warning("🟠 Backend: Disconnected (Start with: python main.py server)")
 
     # API Settings Accordion
     with st.expander("⚙️ Backend Service URL", expanded=False):
