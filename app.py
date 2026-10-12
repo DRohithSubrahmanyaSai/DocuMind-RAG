@@ -15,5 +15,7 @@ ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-# Execute frontend application
-from frontend.app import *
+from frontend.app import render_app
+
+# Execute application on every run and rerun
+render_app()
