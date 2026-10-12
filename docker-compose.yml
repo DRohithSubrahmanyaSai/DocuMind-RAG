@@ -1,0 +1,63 @@
+# ==============================================================================
+# DocuMind-RAG Multi-Container Docker Compose Stack
+# Author: D Rohith Subrahmanya Sai
+# GitHub: https://github.com/DRohithSubrahmanyaSai/DocuMind-RAG
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: documind-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      - HOST=0.0.0.0
+      - PORT=8000
+      - FAISS_INDEX_PATH=/app/data/faiss_index
+      - CHUNK_SIZE=600
+      - CHUNK_OVERLAP=80
+      - DEFAULT_TOP_K=4
+      - RRF_K=60
+    volumes:
+      - documind_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - documind-net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: documind-frontend
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_API_URL=http://backend:8000
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - documind-net
+
+networks:
+  documind-net:
+    driver: bridge
+
+volumes:
+  documind_data:
+    driver: local

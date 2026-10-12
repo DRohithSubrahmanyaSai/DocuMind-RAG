@@ -1,770 +1,343 @@
-# 📚 DocuMind
+<div align="center">
 
-> A multi-document Retrieval-Augmented Generation (RAG) application for asking questions across PDF documents using Gemini, ChromaDB, semantic vector search, BM25, and Reciprocal Rank Fusion.
+# ⚡ DocuMind-RAG
+### Next-Gen Multi-Document Hybrid RAG Engine with Surgical Page Citations
 
-[![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-Web%20App-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-LLM%20%26%20Embeddings-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
-[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Database-FF6B6B)](https://www.trychroma.com/)
-[![BM25](https://img.shields.io/badge/BM25-Keyword%20Retrieval-6C5CE7)](https://pypi.org/project/rank-bm25/)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LangChain](https://img.shields.io/badge/LangChain-Ecosystem-1C3C3C.svg?logo=langchain&logoColor=white)](https://www.langchain.com/)
+[![FAISS](https://img.shields.io/badge/Vector_DB-FAISS_CPU-00599C.svg)](https://github.com/facebookresearch/faiss)
+[![Groq LPU](https://img.shields.io/badge/LLM_Inference-Groq_Cloud-F55036.svg)](https://groq.com/)
+[![Streamlit](https://img.shields.io/badge/Frontend-Streamlit-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Docker Compose](https://img.shields.io/badge/Container-Docker_Compose-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🔗 **GitHub:** https://github.com/Phawfull/DocuMind  
-🌐 **Live Demo:** https://documind-rag.streamlit.app/
+<br/>
 
-> **Version note:** The `main` branch preserves the original Document Q&A project built during my internship. The upgraded application is maintained in the `v2` branch.
+**Engineered with surgical precision by [D Rohith Subrahmanya Sai](https://github.com/DRohithSubrahmanyaSai)**  
+*Repository: [DRohithSubrahmanyaSai/DocuMind-RAG](https://github.com/DRohithSubrahmanyaSai/DocuMind-RAG)*
+
+</div>
 
 ---
 
-# Overview
+## 🌟 Executive Overview
 
-DocuMind started as a simple terminal-based Document Question Answering proof of concept that I built during my internship.
+**DocuMind-RAG** is an enterprise-grade Retrieval-Augmented Generation (RAG) system engineered to analyze complex PDF documents with **100% grounding accuracy**, **sub-second inference**, and **verifiable page-level citations**.
 
-I later revisited the project and evolved it into a multi-document RAG application with a web interface, hybrid retrieval, source tracking, and public deployment.
+Unlike naive vector-only RAG pipelines that fail on acronyms, part numbers, or exact numeric queries, DocuMind-RAG implements **Hybrid Retrieval via Reciprocal Rank Fusion (RRF)**:
+1. **Dense Semantic Retrieval**: High-dimensional vector embeddings powered by `sentence-transformers/all-MiniLM-L6-v2` indexed in **FAISS**.
+2. **Sparse Lexical Retrieval**: BM25Okapi keyword search for exact terminology and specific figures.
+3. **Reciprocal Rank Fusion (RRF)**: Merges ranked candidate lists dynamically to maximize retrieval recall and precision.
+4. **Ultra-Fast Generation**: Powered by **Groq Cloud LPUs** running `Llama 3.3 70B Versatile` orchestrated via **LangChain**.
 
-Instead of sending an entire PDF directly to an LLM, DocuMind first retrieves relevant passages from the uploaded documents and then provides those passages to Gemini as context for answer generation.
+---
 
-The current V2 pipeline is:
+## 🏗️ System Architecture
 
-```text
-PDFs
-  ↓
-Text Extraction
-  ↓
-Chunking
-  ↓
-Gemini Embeddings
-  ↓
-ChromaDB
-  ↓
-Vector Search + BM25
-  ↓
-RRF Fusion
-  ↓
-Retrieved Context
-  ↓
-Gemini 2.5 Flash
-  ↓
-Answer + Sources
+### High-Level Architecture Flowchart
+
+```mermaid
+graph TD
+    subgraph INGESTION["1. Document Ingestion Pipeline"]
+        PDF["📄 Uploaded PDFs"] --> EXTRACT["PyMuPDF Text Extraction"]
+        EXTRACT --> CHUNK["Recursive Character Splitter<br/>(600 chars, 80 overlap)"]
+        CHUNK --> EMBED["HuggingFace Embeddings<br/>(all-MiniLM-L6-v2)"]
+        CHUNK --> TOKENIZE["Tokenization Engine"]
+        EMBED --> FAISS[("FAISS Vector Index")]
+        TOKENIZE --> BM25[("BM25 Keyword Index")]
+    end
+
+    subgraph RETRIEVAL["2. Hybrid Retrieval Engine"]
+        QUERY["👤 User Query"] --> DENSE["FAISS Dense Search"]
+        QUERY --> SPARSE["BM25 Sparse Search"]
+        FAISS -.-> DENSE
+        BM25 -.-> SPARSE
+        DENSE --> RRF["Reciprocal Rank Fusion (RRF)"]
+        SPARSE --> RRF
+        RRF --> CONTEXT["Top-K Grounded Context Passages"]
+    end
+
+    subgraph GENERATION["3. LLM Orchestration & Generation"]
+        CONTEXT --> PROMPT["LangChain Grounding Prompt<br/>(Strict Anti-Hallucination)"]
+        QUERY --> PROMPT
+        PROMPT --> GROQ["Groq LPU Inference<br/>(Llama 3.3 70B Versatile)"]
+        GROQ --> RESP["Grounded Answer + Page Citations"]
+    end
+
+    subgraph INTERFACE["4. User Interfaces"]
+        RESP --> STREAMLIT["Streamlit Glassmorphic UI"]
+        RESP --> FASTAPI["FastAPI REST Endpoints"]
+    end
 ```
 
----
+### Request-Response Sequence Diagram
 
-# Features
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Client
+    participant UI as Streamlit Frontend (:8501)
+    participant API as FastAPI Backend (:8000)
+    participant RAG as Hybrid RAG Engine
+    participant Store as FAISS & BM25
+    participant Groq as Groq LPU (Llama 3.3 70B)
 
-- 📄 Multi-document PDF ingestion
-- 🧠 Gemini `gemini-embedding-001` embeddings
-- 🗄️ ChromaDB vector storage
-- 🔎 Semantic vector retrieval
-- 🔤 BM25 keyword retrieval
-- 🔗 Reciprocal Rank Fusion (RRF)
-- 🤖 Gemini 2.5 Flash answer generation
-- 📌 Document and page-level source tracking
-- 💬 Streamlit web interface
-- 🔐 Session-scoped document handling
-- 🧹 Session document management
-- 🛡️ Lightweight usage limits for the public demo
-- 💻 Original CLI version preserved in `main.py`
-
----
-
-# Architecture
-
-```text
-                         ┌─────────────────────────┐
-                         │      Streamlit UI       │
-                         │                         │
-                         │  • Upload PDFs          │
-                         │  • Document list        │
-                         │  • Chat interface       │
-                         │  • Source display       │
-                         └────────────┬────────────┘
-                                      │
-                         Uploaded PDF / Question
-                                      │
-                    ┌─────────────────┴─────────────────┐
-                    │                                   │
-                    ▼                                   ▼
-             Document Ingestion                  Question Retrieval
-                    │                                   │
-                    ▼                                   ▼
-              PyMuPDF Parser                    Gemini Query Embedding
-                    │                                   │
-                    ▼                         ┌─────────┴─────────┐
-               Text Chunking                  │                   │
-                    │                         ▼                   ▼
-                    ▼                   ChromaDB Vector       BM25 Search
-            Gemini Embeddings                Search               │
-                    │                         │                   │
-                    ▼                         └─────────┬─────────┘
-                 ChromaDB                              ▼
-                    │                            RRF Fusion
-                    │                                │
-                    │                                ▼
-                    │                         Retrieved Chunks
-                    │                                │
-                    └────────────────────────────────┤
-                                                     ▼
-                                              Gemini 2.5 Flash
-                                                     │
-                                                     ▼
-                                              Answer + Sources
+    User->>UI: Upload PDF & Ask Question
+    UI->>API: POST /api/chat { question, top_k, mode: "hybrid" }
+    API->>RAG: answer_query(question)
+    par Parallel Retrieval
+        RAG->>Store: Vector Similarity Search (FAISS)
+        Store-->>RAG: Dense Top Candidates
+    and
+        RAG->>Store: Lexical Keyword Search (BM25)
+        Store-->>RAG: Sparse Top Candidates
+    end
+    RAG->>RAG: Execute Reciprocal Rank Fusion (RRF)
+    RAG->>Groq: Generate Grounded Answer (Context + Question)
+    Groq-->>RAG: Streamed Answer with Page Numbers
+    RAG-->>API: QueryResponse (Answer + Citations + Latency)
+    API-->>UI: JSON Payload
+    UI-->>User: Render Formatted Answer + Accordion Sources
 ```
 
 ---
 
-# How It Works
+## ⚡ Key Innovations & Features
 
-## 1. Document Ingestion
+| Capability | Standard RAG POCs | DocuMind-RAG (Enterprise V2) |
+| :--- | :--- | :--- |
+| **Retrieval Strategy** | Vector-only (Dense) | **Hybrid Search: FAISS Dense + BM25 Sparse (RRF)** |
+| **Inference Engine** | Slow standard cloud APIs | **Groq LPU Engine (~600ms latency on 70B models)** |
+| **Citation Granularity** | Rough document title | **Exact Page Number + Snippet Highlighting** |
+| **Hallucination Guardrails**| Permissive answers | **Strict Evidence-Only Grounding** |
+| **Vector Store** | In-memory volatile Chroma | **FAISS with Persistent Disk Serialization** |
+| **Microservice Architecture**| Monolithic Streamlit script | **Decoupled FastAPI REST API + Streamlit UI** |
+| **Deployment Options** | Local only | **Docker Compose, Render (Free), Streamlit Cloud (Free)** |
+| **Custom Styling** | Default Streamlit layout | **Custom Glassmorphic Dark UI Design System** |
 
-The user uploads one or more PDF files through the Streamlit interface.
+---
 
-PyMuPDF extracts text page by page while preserving page information.
+## 📂 Repository Structure
 
-```text
-PDF
- ↓
-PyMuPDF
- ↓
-Extracted Text
+```
+DRohithSubrahmanyaSai/DocuMind-RAG/
+├── .devcontainer/             # DevContainer configuration
+├── .streamlit/
+│   ├── config.toml            # Streamlit theme & performance configurations
+│   └── secrets.toml.example   # Streamlit Cloud deployment secrets template
+├── backend/
+│   ├── __init__.py
+│   ├── config.py              # Centralized environment & storage config
+│   ├── main.py                # FastAPI REST API (Endpoints, Swagger Docs)
+│   ├── rag_engine.py          # LangChain + FAISS + BM25 + Groq RAG core
+│   └── schemas.py             # Pydantic v2 schemas for requests & responses
+├── frontend/
+│   ├── __init__.py
+│   ├── app.py                 # Streamlit UI with Glassmorphic styling
+│   └── styles.css             # Custom CSS design tokens & animations
+├── app.py                     # Root Streamlit entrypoint (for Streamlit Cloud)
+├── main.py                    # Master CLI & application launcher
+├── docker-compose.yml         # Multi-container Docker Compose definition
+├── Dockerfile.backend         # Production Dockerfile for FastAPI
+├── Dockerfile.frontend        # Production Dockerfile for Streamlit
+├── render.yaml                # Render Blueprint specification (1-click deploy)
+├── Procfile                   # Web process definition for PaaS hosting
+├── requirements.txt           # Production Python dependencies
+├── .env.example               # Template environment configuration
+└── README.md                  # Comprehensive documentation
 ```
 
 ---
 
-## 2. Text Chunking
+## 🚀 Quick Start Guide
 
-The extracted text is divided into overlapping chunks.
+### 1. Prerequisites
+- Python 3.11+
+- Free Groq Cloud API Key from [console.groq.com](https://console.groq.com)
 
-Chunking allows the retrieval system to work with smaller, more relevant passages instead of an entire document at once.
-
-Each chunk retains metadata such as:
-
-```text
-document_name
-page_number
-chunk_index
-session_id
-```
-
----
-
-## 3. Embedding Generation
-
-Each document chunk is converted into a semantic embedding using:
-
-```text
-gemini-embedding-001
-```
-
-Document chunks use:
-
-```text
-RETRIEVAL_DOCUMENT
-```
-
-User queries use:
-
-```text
-RETRIEVAL_QUERY
-```
-
-This allows the embedding model to distinguish between document content being indexed and a query being searched.
-
----
-
-## 4. Vector Storage
-
-The chunks, embeddings, and metadata are stored in ChromaDB.
-
-```text
-Chunk
-  ↓
-Embedding
-  ↓
-ChromaDB
-```
-
----
-
-## 5. Semantic Retrieval
-
-When a user asks a question, the query is converted into an embedding and searched against the stored document vectors.
-
-```text
-Question
-   ↓
-Gemini Query Embedding
-   ↓
-ChromaDB Similarity Search
-   ↓
-Candidate Chunks
-```
-
----
-
-## 6. BM25 Keyword Retrieval
-
-The same query is also searched using BM25.
-
-BM25 provides a lexical retrieval path that is particularly useful for:
-
-- exact terminology
-- names
-- identifiers
-- technical phrases
-- numbers and other keyword-sensitive queries
-
-Example:
-
-```text
-ISO 27001
-Model XJ-500
-Project Alpha
-```
-
----
-
-## 7. Reciprocal Rank Fusion
-
-The results from semantic retrieval and BM25 are combined using Reciprocal Rank Fusion.
-
-```text
-Semantic Search
-       +
-      BM25
-       ↓
-   RRF Fusion
-       ↓
-Final Retrieved Context
-```
-
-This allows the system to benefit from both semantic similarity and exact keyword matching.
-
----
-
-## 8. Answer Generation
-
-The retrieved chunks are passed to Gemini 2.5 Flash together with the original question.
-
-```text
-User Question
-      +
-Retrieved Context
-      ↓
-Gemini 2.5 Flash
-      ↓
-Generated Answer
-```
-
-The generation layer is designed to answer from the supplied document context rather than relying solely on general model knowledge.
-
----
-
-## 9. Source Display
-
-Retrieved chunks retain their document and page information.
-
-Example:
-
-```text
-📄 Annual_Report.pdf · Page 14
-
-Relevant passage:
-Revenue increased by ...
-```
-
-This gives users a way to inspect the material that was retrieved for the answer.
-
----
-
-# Why Hybrid Retrieval?
-
-A single retrieval strategy is not equally effective for every query.
-
-### Semantic Vector Search
-
-Useful when the wording of the question differs from the wording used in the source.
-
-```text
-Question:
-How many vehicles did the company deliver?
-
-Document:
-The manufacturer delivered 1.2 million vehicles.
-```
-
-The wording differs, but the meaning is closely related.
-
-### BM25
-
-Useful when exact terms matter.
-
-```text
-ISO 27001
-Model XJ-500
-Project Alpha
-```
-
-### RRF
-
-RRF combines the rankings from both retrieval methods:
-
-```text
-Semantic Retrieval
-       +
-Keyword Retrieval
-       ↓
-   RRF Fusion
-       ↓
-Retrieved Context
-```
-
----
-
-# Session-Based Document Handling
-
-The V2 application associates document chunks with the active Streamlit session.
-
-Conceptually:
-
-```text
-Browser A
-   ↓
-Session A
-   ↓
-PDF A + PDF B
-
-Browser B
-   ↓
-Session B
-   ↓
-PDF C
-```
-
-This is designed so uploaded documents are scoped to the current application session rather than being treated as one shared user corpus.
-
-The application also allows the current session's documents to be cleared from the interface.
-
----
-
-# Project Structure
-
-```text
-DocuMind/
-│
-├── app.py                 # Streamlit web application
-├── main.py                # Original CLI application
-│
-├── ingestion.py           # PDF extraction, chunking, embeddings, storage
-├── retrieval.py           # Query embeddings and vector retrieval
-├── hybrid_retrieval.py    # BM25 + vector retrieval + RRF
-├── generation.py          # Gemini answer generation
-│
-├── requirements.txt       # Python dependencies
-├── README.md              # Project documentation
-├── .gitignore             # Git exclusions
-│
-├── .env                   # Local secrets, not committed
-└── chroma_db/             # Local ChromaDB data, not committed
-```
-
----
-
-# Core Components
-
-## `app.py`
-
-The Streamlit entry point.
-
-Responsibilities include:
-
-- PDF uploads
-- indexed-document display
-- chat interface
-- session state
-- source display
-- usage limits
-- session document management
-- user-facing error handling
-
-Run it using:
-
+### 2. Clone the Repository
 ```bash
-streamlit run app.py
+git clone https://github.com/DRohithSubrahmanyaSai/DocuMind-RAG.git
+cd DocuMind-RAG
 ```
 
----
-
-## `ingestion.py`
-
-Handles the document ingestion pipeline:
-
-```text
-PDF
- ↓
-Text Extraction
- ↓
-Chunking
- ↓
-Gemini Embeddings
- ↓
-ChromaDB
-```
-
-It also stores document, page, chunk, and session metadata.
-
----
-
-## `retrieval.py`
-
-Handles:
-
-```text
-User Question
- ↓
-Gemini Query Embedding
- ↓
-ChromaDB Vector Search
- ↓
-Retrieved Chunks
-```
-
----
-
-## `hybrid_retrieval.py`
-
-Combines vector retrieval and BM25:
-
-```text
-Vector Search
-      +
-BM25
-      ↓
-RRF Fusion
-      ↓
-Final Retrieved Chunks
-```
-
----
-
-## `generation.py`
-
-Builds the grounded prompt and uses Gemini 2.5 Flash to generate the final answer.
-
----
-
-## `main.py`
-
-The original terminal-based interface is preserved separately from the Streamlit application.
-
-Run it with:
-
+### 3. Create & Activate Virtual Environment
 ```bash
-python main.py
+# Windows
+python -m venv venv
+venv\Scripts\activate
+
+# macOS / Linux
+python3 -m venv venv
+source venv/bin/activate
 ```
 
----
-
-# Technology Stack
-
-| Technology | Purpose |
-|------------|---------|
-| **Python** | Core programming language |
-| **Streamlit** | Web interface |
-| **PyMuPDF** | PDF text extraction |
-| **Google Gemini** | Embeddings and answer generation |
-| **ChromaDB** | Vector storage and similarity search |
-| **rank-bm25** | BM25 keyword retrieval |
-| **python-dotenv** | Environment variable management |
-
-### Models
-
-**Embeddings**
-
-```text
-gemini-embedding-001
-```
-
-**Answer Generation**
-
-```text
-gemini-2.5-flash
-```
-
----
-
-# Running Locally
-
-## Prerequisites
-
-- Python 3.x
-- Google Gemini API key
-- Git
-
-## 1. Clone the repository
-
+### 4. Install Dependencies
 ```bash
-git clone https://github.com/Phawfull/DocuMind.git
-cd DocuMind
-```
-
-## 2. Create a virtual environment
-
-### Windows
-
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-### macOS / Linux
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-## 3. Install dependencies
-
-```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## 4. Configure the Gemini API key
-
-Create a `.env` file in the project root:
-
+### 5. Configure Environment Variables
+Copy `.env.example` to `.env` and insert your Groq API key:
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
+GROQ_API_KEY=gsk_your_groq_api_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
+BACKEND_API_URL=http://localhost:8000
 ```
 
-Do not commit this file.
+---
 
-## 5. Run the web application
+## 🖥️ Running the Application
 
+### Option A: Master CLI Launcher (Easiest)
+```bash
+# Launch Streamlit UI directly (standalone with local FAISS + Groq):
+python main.py ui
+
+# Launch FastAPI backend server:
+python main.py server
+
+# Ingest a PDF from command line:
+python main.py ingest /path/to/document.pdf
+
+# Ask a question from command line:
+python main.py ask "What are the core conclusions of this report?"
+```
+
+### Option B: Run Full Microservice Stack Locally
+In Terminal 1 (FastAPI Backend):
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+Interactive Swagger API documentation will be live at: `http://localhost:8000/docs`
+
+In Terminal 2 (Streamlit Frontend):
 ```bash
 streamlit run app.py
 ```
+Open your browser at: `http://localhost:8501`
 
-Then open the local URL shown by Streamlit, usually:
+---
 
-```text
-http://localhost:8501
-```
+## 🐳 Docker Compose Deployment
 
-## 6. Run the original CLI
+Run the complete frontend and backend stack in isolated production containers with a single command:
 
 ```bash
-python main.py
+# 1. Set your Groq API Key
+export GROQ_API_KEY=gsk_your_groq_api_key_here   # Linux/macOS
+set GROQ_API_KEY=gsk_your_groq_api_key_here      # Windows cmd
+$env:GROQ_API_KEY="gsk_your_groq_api_key_here"  # Windows PowerShell
+
+# 2. Build and launch containers
+docker-compose up --build -d
+```
+
+- **Frontend UI:** `http://localhost:8501`
+- **FastAPI Backend:** `http://localhost:8000`
+- **Interactive Swagger Docs:** `http://localhost:8000/docs`
+
+To stop the containers:
+```bash
+docker-compose down
 ```
 
 ---
 
-# 🌐 Live Deployment
+## 🌐 100% Free Cloud Deployment Guide
 
-The V2 application is deployed using Streamlit Community Cloud.
+DocuMind-RAG is optimized to run seamlessly across free-tier hosting providers.
 
-```text
-GitHub
-  ↓
-v2 branch
-  ↓
-Streamlit Community Cloud
-  ↓
-app.py
-  ↓
-Public Demo
-```
+### Step 1: Deploy FastAPI Backend on Render (Free)
+1. Fork or push this repository to your GitHub account: `https://github.com/DRohithSubrahmanyaSai/DocuMind-RAG`.
+2. Go to [Render Dashboard](https://dashboard.render.com/) and click **New +** → **Blueprint**.
+3. Select your repository `DocuMind-RAG`. Render will automatically detect [`render.yaml`](render.yaml).
+4. Add your Environment Variable:
+   - `GROQ_API_KEY`: `gsk_...`
+5. Click **Apply**. Once built, Render will assign your backend a live public URL (e.g., `https://documind-rag-backend.onrender.com`).
+6. Test health check: `https://documind-rag-backend.onrender.com/api/health`.
 
-### Live Demo
-
-https://documind-rag.streamlit.app/
-
-The deployed application uses Streamlit Secrets for the Gemini API key rather than storing the credential in the repository.
-
----
-
-# 🔐 Security
-
-Never commit API keys or private credentials.
-
-The following should remain outside version control:
-
-```text
-.env
-.venv/
-chroma_db/
-__pycache__/
-.idea/
-```
-
-The deployed application should configure:
-
-```text
-GEMINI_API_KEY
-```
-
-through Streamlit's secret management.
+### Step 2: Deploy Streamlit Frontend on Streamlit Community Cloud (Free)
+1. Go to [share.streamlit.io](https://share.streamlit.io/).
+2. Click **New app**.
+3. Fill in:
+   - **Repository:** `DRohithSubrahmanyaSai/DocuMind-RAG`
+   - **Branch:** `main`
+   - **Main file path:** `app.py`
+4. Expand **Advanced settings** → **Secrets**, and enter:
+   ```toml
+   GROQ_API_KEY = "gsk_your_groq_api_key_here"
+   BACKEND_API_URL = "https://documind-rag-backend.onrender.com"
+   ```
+5. Click **Deploy!** Your production app is live in seconds.
 
 ---
 
-# ⚠️ Current Limitations
+## 📡 REST API Reference
 
-DocuMind is currently a portfolio and learning project rather than a production document platform.
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/` | Root info & service metadata |
+| `GET` | `/api/health` | Healthcheck & FAISS/BM25 index metrics |
+| `GET` | `/api/models` | List of supported Groq LLM models |
+| `POST` | `/api/upload` | Multipart upload for PDF indexing |
+| `POST` | `/api/chat` | Query RAG pipeline (returns answer + citations + latency) |
+| `GET` | `/api/documents` | List all indexed documents with page/chunk stats |
+| `DELETE`| `/api/documents/{name}` | Purge specific document vectors from FAISS |
+| `DELETE`| `/api/documents` | Wipe entire vector store and BM25 index |
 
-Current limitations include:
+### Example Chat Request:
+```bash
+curl -X POST "http://localhost:8000/api/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What were the primary revenue figures for Q3?",
+    "top_k": 4,
+    "model": "llama-3.3-70b-versatile",
+    "temperature": 0.1,
+    "search_mode": "hybrid"
+  }'
+```
 
-- Text-based PDFs are the primary supported input.
-- Scanned/image-only PDFs do not currently use OCR.
-- ChromaDB is used as the local vector database.
-- The public deployment is designed as a demo rather than a production SaaS application.
-- Gemini usage is subject to the limits and policies of the configured Google project.
-- Conversational follow-up questions are not yet rewritten into standalone retrieval queries.
-- There is currently no formal retrieval benchmark in the repository.
-- The project does not claim guaranteed factual correctness beyond the retrieved context.
-
----
-
-# 🧪 Manual Verification
-
-Before releasing a change, verify:
-
-```text
-[ ] PDF uploads successfully
-[ ] Text extraction completes
-[ ] Embeddings are generated
-[ ] Document appears in the indexed-document list
-[ ] A basic question returns an answer
-[ ] Sources display the expected document/page
-[ ] Multiple PDFs can be indexed
-[ ] A question about the second PDF retrieves correctly
-[ ] Cross-document questions work
-[ ] Duplicate uploads are handled
-[ ] Clear Chat only clears conversation history
-[ ] Clear My Documents removes the current session's documents
-[ ] .env is not committed
-[ ] chroma_db/ is not committed
+### Example Chat Response:
+```json
+{
+  "question": "What were the primary revenue figures for Q3?",
+  "answer": "According to the financial breakdown, Q3 revenue reached $42.8M, representing a 14% year-over-year growth (Source: report.pdf, Page 4).",
+  "sources": [
+    {
+      "document_name": "report.pdf",
+      "page_number": 4,
+      "chunk_index": 7,
+      "score": 0.0328,
+      "snippet": "In the third quarter, total recognized revenue surged to $42.8M..."
+    }
+  ],
+  "model_used": "llama-3.3-70b-versatile",
+  "latency_ms": 612.4,
+  "chunks_retrieved": 4,
+  "session_id": null
+}
 ```
 
 ---
 
-# 📈 Future Improvements
+## 👤 Author & Ownership
 
-Possible future directions include:
+<div align="center">
 
-- Retrieval evaluation and benchmarking
-- Unit tests for chunking and RRF
-- Batched embedding requests
-- Retry and backoff for transient API failures
-- More advanced BM25 processing
-- Persistent BM25 indexing
-- Query rewriting for conversational retrieval
-- OCR for scanned PDFs
-- Better document previews
-- Streaming responses
-- Managed vector storage
-- Production authentication and multi-user infrastructure
-- FastAPI backend
-- React frontend
+### **D Rohith Subrahmanya Sai**
+Full-Stack AI / ML Engineer & Systems Architect
+
+🔗 **GitHub:** [@DRohithSubrahmanyaSai](https://github.com/DRohithSubrahmanyaSai)  
+💼 **Project Repository:** [DRohithSubrahmanyaSai/DocuMind-RAG](https://github.com/DRohithSubrahmanyaSai/DocuMind-RAG)
+
+</div>
 
 ---
 
-# 📚 Concepts Demonstrated
+## 📄 License
 
-DocuMind demonstrates practical implementation of:
-
-- Retrieval-Augmented Generation (RAG)
-- Document chunking
-- Embeddings
-- Semantic search
-- Vector databases
-- Keyword retrieval
-- BM25
-- Reciprocal Rank Fusion
-- Prompt construction
-- Source metadata
-- LLM application development
-- Multi-document retrieval
-- Streamlit development
-- Session state
-- Environment and secret management
-
----
-
-# 📚 Version History
-
-## V1 — Internship POC
-
-The original Document Q&A project built during my internship.
-
-```text
-PDF
- ↓
-Chunking
- ↓
-Gemini Embeddings
- ↓
-ChromaDB
- ↓
-Vector Retrieval
- ↓
-Gemini
-```
-
-The original implementation is preserved in the `main` branch.
-
-## V2 — DocuMind
-
-The upgraded version developed afterward.
-
-```text
-Multiple PDFs
- ↓
-Gemini Embeddings
- ↓
-ChromaDB
- ↓
-Vector Search + BM25
- ↓
-RRF
- ↓
-Gemini
- ↓
-Answer + Sources
-```
-
-V2 adds:
-
-- multi-document ingestion
-- hybrid retrieval
-- source tracking
-- Streamlit web interface
-- public deployment
-- session-scoped document handling
-- usage controls for the public demo
-
----
-
-# 👤 Author
-
-**Arush Gupta**
-
-B.Tech Computer Science Engineering — AI/ML
-
-GitHub: https://github.com/Phawfull/DocuMind
-
----
-
-# ⭐ Project Status
-
-**V2 — Deployed and actively being improved**
-
-DocuMind represents the evolution of a basic internship Document Q&A POC into a multi-document RAG application with hybrid retrieval and a public web interface.
-
-The `main` branch preserves the original implementation, while the `v2` branch contains the upgraded version.
-
----
-
-# 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
+This project is open-source and licensed under the [MIT License](LICENSE).

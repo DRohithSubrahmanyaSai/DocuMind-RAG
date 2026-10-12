@@ -1,75 +1,118 @@
-from ingestion import process_pdf, collection
-from hybrid_retrieval import hybrid_search
-from generation import generate_answer
-import os
-import logging
+"""
+DocuMind-RAG Master CLI & Application Controller
+Author: D Rohith Subrahmanya Sai
+GitHub: https://github.com/DRohithSubrahmanyaSai/DocuMind-RAG
+"""
 
+import sys
+import argparse
+import subprocess
+from pathlib import Path
 
-def document_exists(document_name: str) -> bool:
-    results = collection.get(
-        where={"document_name": document_name},
-        limit=1
-    )
-    return len(results["ids"]) > 0
-
-
-def add_document():
-    pdf_path = input("Enter PDF path: ")
-    if not os.path.exists(pdf_path):
-        print("Error: File does not exist.\n")
-        return
-    if not pdf_path.lower().endswith(".pdf"):
-        print("Error: Please provide a PDF file.\n")
-        return
-
-    document_name = os.path.basename(pdf_path)
-    if document_exists(document_name):
-        print("Document already exists in the database.\n")
-        return
-
+# Fix Windows console UTF-8 emoji encoding
+if hasattr(sys.stdout, "reconfigure"):
     try:
-        process_pdf(pdf_path)
-        print("Document added successfully.\n")
-    except Exception as e:
-        logging.error(f"Error processing PDF: {e}")
-        print("Error processing document. Please try again.\n")
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+# Add workspace directory to path
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 
-def ask_questions():
-    results = collection.get(limit=1)
-    if not results["ids"]:
-        print("No documents in the database. Add a document first.\n")
+def run_backend(host: str = "0.0.0.0", port: int = 8000, reload: bool = True):
+    """Launch FastAPI backend server with Uvicorn."""
+    import uvicorn
+    from backend.config import settings
+
+    print(f"\n🚀 Starting DocuMind-RAG FastAPI Backend on http://{host}:{port}")
+    print(f"📖 Interactive Swagger Docs: http://{host}:{port}/docs\n")
+    uvicorn.run("backend.main:app", host=host, port=port, reload=reload)
+
+
+def run_frontend(port: int = 8501):
+    """Launch Streamlit frontend interface."""
+    print(f"\n⚡ Starting DocuMind-RAG Streamlit UI on http://localhost:{port}\n")
+    subprocess.run(["streamlit", "run", "app.py", "--server.port", str(port)])
+
+
+def cli_ingest(file_path: str):
+    """CLI utility to ingest a PDF into the RAG vector store."""
+    from backend.rag_engine import rag_engine
+
+    path = Path(file_path)
+    if not path.exists():
+        print(f"❌ Error: File '{file_path}' does not exist.")
         return
 
-    print("\nAsk questions about your documents (type 'back' to return to menu).\n")
-    while True:
-        question = input("Ask a question: ")
-        if question.lower() == "back":
-            break
-        context = hybrid_search(question)
-        answer = generate_answer(question, context)
-        print("\nAnswer:")
-        print(answer)
-        print()
+    print(f"📄 Ingesting '{path.name}' into FAISS & BM25 indices...")
+    try:
+        res = rag_engine.ingest_pdf(str(path), path.name)
+        print(f"✅ Successfully ingested: {res['total_pages']} pages, {res['total_chunks']} chunks.")
+    except Exception as e:
+        print(f"❌ Ingestion failed: {e}")
+
+
+def cli_ask(question: str):
+    """CLI utility to ask a question to DocuMind-RAG."""
+    from backend.rag_engine import rag_engine
+
+    print(f"\n🔍 Query: {question}")
+    print("⏳ Processing through Hybrid RAG & Groq LLM...")
+    try:
+        res = rag_engine.answer_query(question)
+        print("\n💡 Answer:")
+        print(res["answer"])
+        print(f"\n⚡ Model: {res['model_used']} | Latency: {res['latency_ms']} ms")
+        if res["sources"]:
+            print("\n📑 Sources:")
+            for s in res["sources"]:
+                print(f"  • {s['document_name']} (Page {s['page_number']})")
+    except Exception as e:
+        print(f"❌ Query failed: {e}")
 
 
 def main():
-    print("\nDocument Q&A System\n")
-    while True:
-        print("1. Add document")
-        print("2. Ask question")
-        print("3. Exit")
-        choice = input("\nSelect an option: ")
+    parser = argparse.ArgumentParser(
+        description="DocuMind-RAG: Next-Gen Multi-Document Hybrid RAG Engine by D Rohith Subrahmanya Sai"
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-        if choice == "1":
-            add_document()
-        elif choice == "2":
-            ask_questions()
-        elif choice == "3":
-            print("Exiting...")
-            break
-        else:
-            print("Invalid option. Please try again.\n")
+    # Command: server
+    server_parser = subparsers.add_parser("server", help="Start the FastAPI backend server")
+    server_parser.add_argument("--host", default="0.0.0.0", help="Host address")
+    server_parser.add_argument("--port", type=int, default=8000, help="Port number")
+    server_parser.add_argument("--no-reload", action="store_true", help="Disable auto-reload")
+
+    # Command: ui
+    ui_parser = subparsers.add_parser("ui", help="Start the Streamlit Chat UI")
+    ui_parser.add_argument("--port", type=int, default=8501, help="Port number")
+
+    # Command: ingest
+    ingest_parser = subparsers.add_parser("ingest", help="Ingest a PDF document into FAISS")
+    ingest_parser.add_argument("file", help="Path to PDF file")
+
+    # Command: ask
+    ask_parser = subparsers.add_parser("ask", help="Ask a question against indexed documents")
+    ask_parser.add_argument("question", help="Question text")
+
+    args = parser.parse_args()
+
+    if args.command == "server":
+        run_backend(host=args.host, port=args.port, reload=not args.no_reload)
+    elif args.command == "ui":
+        run_frontend(port=args.port)
+    elif args.command == "ingest":
+        cli_ingest(args.file)
+    elif args.command == "ask":
+        cli_ask(args.question)
+    else:
+        # Default action: launch UI
+        print("💡 No command specified. Defaulting to launching Streamlit Chat UI.")
+        run_frontend()
 
 
 if __name__ == "__main__":
