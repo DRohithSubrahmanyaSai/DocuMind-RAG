@@ -13,10 +13,12 @@ logging.getLogger("transformers").setLevel(logging.ERROR)
 import pymupdf  # Modern PyMuPDF import
 from rank_bm25 import BM25Okapi
 
-# LangChain Imports
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ImportError:
+    from langchain_community.embeddings import HuggingFaceEmbeddings  # fallback
 from langchain_community.vectorstores import FAISS
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
