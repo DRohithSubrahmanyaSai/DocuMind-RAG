@@ -34,7 +34,18 @@ class HTTPRAGClient:
                     data=data
                 )
                 response.raise_for_status()
-                return response.json()
+                result = response.json()
+                # The API returns UploadResponse with a nested 'documents' list.
+                # Normalise to the flat dict shape the frontend expects:
+                # { "total_chunks": int, "total_pages": int, "document_name": str, ... }
+                docs = result.get("documents", [])
+                first = docs[0] if docs else {}
+                return {
+                    "document_name": first.get("document_name", document_name),
+                    "total_pages": first.get("total_pages", 0),
+                    "total_chunks": result.get("total_chunks_added", first.get("total_chunks", 0)),
+                    "session_id": first.get("session_id", session_id),
+                }
         except requests.exceptions.RequestException as e:
             logger.error(f"Error uploading PDF: {e}")
             raise Exception(f"Failed to upload document: {str(e)}")
