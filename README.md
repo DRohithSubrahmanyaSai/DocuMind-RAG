@@ -9,7 +9,6 @@
 [![FAISS](https://img.shields.io/badge/Vector_DB-FAISS_CPU-00599C.svg)](https://github.com/facebookresearch/faiss)
 [![Groq LPU](https://img.shields.io/badge/LLM_Inference-Groq_Cloud-F55036.svg)](https://groq.com/)
 [![Streamlit](https://img.shields.io/badge/Frontend-Streamlit-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Docker Compose](https://img.shields.io/badge/Container-Docker_Compose-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -113,7 +112,7 @@ sequenceDiagram
 | **Hallucination Guardrails**| Permissive answers | **Strict Evidence-Only Grounding** |
 | **Vector Store** | In-memory volatile Chroma | **FAISS with Persistent Disk Serialization** |
 | **Microservice Architecture**| Monolithic Streamlit script | **Decoupled FastAPI REST API + Streamlit UI** |
-| **Deployment Options** | Local only | **Docker Compose, Render (Free), Streamlit Cloud (Free)** |
+| **Deployment Options** | Requires cloud or container hosting | **Local-first: FastAPI + Streamlit, runs fully on your machine** |
 | **Custom Styling** | Default Streamlit layout | **Custom Glassmorphic Dark UI Design System** |
 
 ---
@@ -124,8 +123,7 @@ sequenceDiagram
 DRohithSubrahmanyaSai/DocuMind-RAG/
 ├── .devcontainer/             # DevContainer configuration
 ├── .streamlit/
-│   ├── config.toml            # Streamlit theme & performance configurations
-│   └── secrets.toml.example   # Streamlit Cloud deployment secrets template
+│   └── config.toml            # Streamlit theme & performance configurations
 ├── backend/
 │   ├── __init__.py
 │   ├── config.py              # Centralized environment & storage config
@@ -136,13 +134,8 @@ DRohithSubrahmanyaSai/DocuMind-RAG/
 │   ├── __init__.py
 │   ├── app.py                 # Streamlit UI with Glassmorphic styling
 │   └── styles.css             # Custom CSS design tokens & animations
-├── app.py                     # Root Streamlit entrypoint (for Streamlit Cloud)
+├── app.py                     # Root Streamlit entrypoint
 ├── main.py                    # Master CLI & application launcher
-├── docker-compose.yml         # Multi-container Docker Compose definition
-├── Dockerfile.backend         # Production Dockerfile for FastAPI
-├── Dockerfile.frontend        # Production Dockerfile for Streamlit
-├── render.yaml                # Render Blueprint specification (1-click deploy)
-├── Procfile                   # Web process definition for PaaS hosting
 ├── requirements.txt           # Production Python dependencies
 ├── .env.example               # Template environment configuration
 └── README.md                  # Comprehensive documentation
@@ -218,60 +211,6 @@ In Terminal 2 (Streamlit Frontend):
 streamlit run app.py
 ```
 Open your browser at: `http://localhost:8501`
-
----
-
-## 🐳 Docker Compose Deployment
-
-Run the complete frontend and backend stack in isolated production containers with a single command:
-
-```bash
-# 1. Set your Groq API Key
-export GROQ_API_KEY=gsk_your_groq_api_key_here   # Linux/macOS
-set GROQ_API_KEY=gsk_your_groq_api_key_here      # Windows cmd
-$env:GROQ_API_KEY="gsk_your_groq_api_key_here"  # Windows PowerShell
-
-# 2. Build and launch containers
-docker-compose up --build -d
-```
-
-- **Frontend UI:** `http://localhost:8501`
-- **FastAPI Backend:** `http://localhost:8000`
-- **Interactive Swagger Docs:** `http://localhost:8000/docs`
-
-To stop the containers:
-```bash
-docker-compose down
-```
-
----
-
-## 🌐 100% Free Cloud Deployment Guide
-
-DocuMind-RAG is optimized to run seamlessly across free-tier hosting providers.
-
-### Step 1: Deploy FastAPI Backend on Render (Free)
-1. Fork or push this repository to your GitHub account: `https://github.com/DRohithSubrahmanyaSai/DocuMind-RAG`.
-2. Go to [Render Dashboard](https://dashboard.render.com/) and click **New +** → **Blueprint**.
-3. Select your repository `DocuMind-RAG`. Render will automatically detect [`render.yaml`](render.yaml).
-4. Add your Environment Variable:
-   - `GROQ_API_KEY`: `gsk_...`
-5. Click **Apply**. Once built, Render will assign your backend a live public URL (e.g., `https://documind-rag-backend.onrender.com`).
-6. Test health check: `https://documind-rag-backend.onrender.com/api/health`.
-
-### Step 2: Deploy Streamlit Frontend on Streamlit Community Cloud (Free)
-1. Go to [share.streamlit.io](https://share.streamlit.io/).
-2. Click **New app**.
-3. Fill in:
-   - **Repository:** `DRohithSubrahmanyaSai/DocuMind-RAG`
-   - **Branch:** `main`
-   - **Main file path:** `app.py`
-4. Expand **Advanced settings** → **Secrets**, and enter:
-   ```toml
-   GROQ_API_KEY = "gsk_your_groq_api_key_here"
-   BACKEND_API_URL = "https://documind-rag-backend.onrender.com"
-   ```
-5. Click **Deploy!** Your production app is live in seconds.
 
 ---
 
