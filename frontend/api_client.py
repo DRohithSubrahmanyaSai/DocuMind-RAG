@@ -12,7 +12,12 @@ logger = logging.getLogger("documind.frontend.api")
 
 class HTTPRAGClient:
     def __init__(self, backend_url: str):
-        self.backend_url = backend_url.rstrip('/')
+        backend_url = (backend_url or "").strip().rstrip('/')
+        # Render's fromService hostport gives "host:port" (internal network, no scheme).
+        # Normalize to a usable base URL.
+        if backend_url and not backend_url.startswith(("http://", "https://")):
+            backend_url = f"http://{backend_url}"
+        self.backend_url = backend_url
         self.session = requests.Session()
         # Set timeout for requests
         self.session.timeout = 30
