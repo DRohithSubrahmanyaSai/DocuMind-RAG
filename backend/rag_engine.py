@@ -48,8 +48,19 @@ class RAGEngine:
             chunk_overlap=settings.CHUNK_OVERLAP,
             separators=["\n\n", "\n", ". ", " ", ""],
         )
+        self._loaded = False
+
+    def _ensure_loaded(self):
+        """Lazily initialize the embedding model and load any persisted index.
+
+        Deferring this keeps cold-start fast and memory low (important on
+        memory-constrained hosts such as Render's free tier).
+        """
+        if self._loaded:
+            return
         self._init_embeddings()
         self._load_existing_store()
+        self._loaded = True
 
     def _init_embeddings(self):
         """Initialize local HuggingFace embedding model."""
@@ -164,6 +175,7 @@ class RAGEngine:
         """
         Process a PDF: Extract pages -> Chunk text -> Create FAISS vectors & BM25 entries.
         """
+        self._ensure_loaded()
         pages = self.extract_pdf_pages(file_path)
         if not pages:
             raise ValueError(f"No readable text found in {document_name}")
@@ -320,6 +332,7 @@ class RAGEngine:
         search_mode: str = "hybrid",
     ) -> List[Dict[str, Any]]:
         """Retrieve relevant document passages based on mode."""
+        self._ensure_loaded()
         if not self.bm25_corpus:
             return []
 
