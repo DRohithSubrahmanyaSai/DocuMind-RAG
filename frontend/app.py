@@ -33,6 +33,7 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=ROOT_DIR / ".env")
 
 import streamlit as st
+from frontend.api_client import get_http_rag_client
 
 
 # ---------------------------------------------------------------------------
@@ -420,12 +421,11 @@ def _inject_css():
 
 
 # ---------------------------------------------------------------------------
-# RAG Engine (cached singleton)
+# RAG Engine (HTTP client)
 # ---------------------------------------------------------------------------
-@st.cache_resource(show_spinner="Loading DocuMind-RAG engine and embedding model...")
-def _get_rag_engine():
-    from backend.rag_engine import RAGEngine
-    return RAGEngine()
+@st.cache_resource
+def _get_rag_client():
+    return get_http_rag_client()
 
 
 # ---------------------------------------------------------------------------
@@ -446,7 +446,7 @@ def _init_state():
 # Ingest helper
 # ---------------------------------------------------------------------------
 def _ingest_files(uploaded_files):
-    rag = _get_rag_engine()
+    rag = _get_rag_client()
     total_chunks = 0
     names = []
     try:
@@ -474,7 +474,7 @@ def _ingest_files(uploaded_files):
 # Query helper
 # ---------------------------------------------------------------------------
 def _run_query(question, top_k, model, temperature, search_mode):
-    rag = _get_rag_engine()
+    rag = _get_rag_client()
     try:
         return rag.answer_query(
             question=question,
@@ -531,7 +531,7 @@ def _render_meta(lat, mod, ch):
 def render_app():
     _inject_css()
     _init_state()
-    rag = _get_rag_engine()
+    rag = _get_rag_client()
 
     # Refresh docs list
     docs = rag.list_documents(session_id=st.session_state["session_id"])
