@@ -48,7 +48,7 @@ services:
         fromService:
           type: web
           name: documind-rag-backend
-          property: hostname
+          property: url
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
